@@ -17,8 +17,7 @@
 - 🔔 **Notifications** - Optional HA persistent and mobile push notifications (after completion)
 - 🛡️ **Auto-cancel** - Automatic cancellation of redundant tasks on manual state change
 - 📊 **Monitoring sensor** - Track active scheduled tasks with countdown
-- 🎨 **Lovelace cards** - Elegant UI with countdown display and progress bar
-- 📋 **Overview card** - See all active scheduled actions in one place
+- 🎨 **Lovelace integration** - Works with the separate Quick Timer Card for elegant UI
 - 💉 **Dialog injection** - Automatic timer panel in more-info dialogs
 
 ## 📦 Installation
@@ -35,20 +34,15 @@
 8. Search for "Quick Timer" and click **Download**
 9. Restart Home Assistant
 
-> **Note:** HACS automatically registers the Lovelace card (`quick-timer-card.js`) in Dashboard Resources. No manual steps needed!
-
 ### Manual Installation
 
 1. Download the latest release from [Releases](https://github.com/jozefnad/homeassitant-quick_timer/releases)
 2. Extract and copy the `custom_components/quick_timer` folder to your `config/custom_components/`
-3. **Important - Register the Lovelace card manually:**
-   - Copy `quick-timer-card.js` from the repository root to `/config/www/`
-   - Go to **Settings** → **Dashboards** → **Resources** (⋮ menu)
-   - Click **+ Add Resource**
-   - URL: `/local/quick-timer-card.js`
-   - Resource type: **JavaScript Module**
-   - Click **Create**
-4. Restart Home Assistant
+3. Restart Home Assistant
+
+### Installing the Lovelace Card
+
+The Quick Timer Card is a separate component. Install it from: [Quick Timer Card](https://github.com/jozefnad/homeassitant-quick_timer_card)
 
 ## ⚙️ Configuration
 
@@ -61,17 +55,7 @@
 
 ### Adding the Lovelace Card
 
-The card is automatically registered as a Lovelace resource. Add it to your dashboard:
-
-```yaml
-type: custom:quick-timer-card
-entity: light.living_room
-name: Living Room Timer
-default_delay: 30
-default_unit: minutes
-default_action: off
-mode: compact  # or 'full'
-```
+The Quick Timer Card is a separate Lovelace card. See the [Quick Timer Card repository](https://github.com/jozefnad/homeassitant-quick_timer_card) for installation and configuration instructions.
 
 ### Overview Card
 
@@ -188,22 +172,6 @@ action:
       message: "Action {{ trigger.event.data.action }} for {{ trigger.event.data.entity_id }} was executed"
 ```
 
-## 🎨 Lovelace Card - Configuration Options
-
-| Option | Type | Required | Default | Description |
-|--------|------|----------|---------|-------------|
-| `type` | string | ✅ | - | `custom:quick-timer-card` |
-| `entity` | string | ✅ | - | Entity ID |
-| `name` | string | ❌ | From entity | Card name |
-| `icon` | string | ❌ | From entity | Icon override |
-| `color` | string | ❌ | "state" | Icon color |
-| `mode` | string | ❌ | "compact" | Display mode: `compact` or `full` |
-| `default_delay` | int | ❌ | 15 | Default delay |
-| `default_unit` | string | ❌ | "minutes" | Default unit |
-| `default_action` | string | ❌ | "off" | Default action |
-| `notify_ha` | bool | ❌ | false | Enable HA notifications by default |
-| `notify_mobile` | bool | ❌ | false | Enable mobile notifications by default |
-
 ## 🐛 Troubleshooting
 
 ### Integration not showing
@@ -215,11 +183,6 @@ action:
 - Make sure the integration is properly configured
 - Check that the entity exists and is available
 - Review logs for detailed error messages
-
-### Card not showing
-- Check that the resource is properly added
-- Clear browser cache
-- Check browser console for errors
 
 ## 📝 License
 

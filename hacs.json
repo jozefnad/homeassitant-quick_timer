@@ -2,11 +2,5 @@
   "name": "Quick Timer",
   "domain": "quick_timer",
   "content_type": "integration",
-  "render_readme": true,
-  "lovelace_cards": [
-    {
-      "name": "Quick Timer Card",
-      "filename": "quick-timer-card.js"
-    }
-  ]
+  "render_readme": true
 }
