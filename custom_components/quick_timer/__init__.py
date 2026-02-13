@@ -62,6 +62,8 @@ from .const import (
 )
 from .store import QuickTimerStore, QuickTimerPreferencesStore
 
+from .frontend import async_register_frontend # Import frontend registration function for automatic resource registration and dialog injection
+
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["sensor"]
@@ -1023,6 +1025,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Quick Timer from a config entry."""
+
+    #Register frontend resources and dialog injection
+    await async_register_frontend(hass)
+
     # Ensure async_setup was called
     if DOMAIN not in hass.data:
         await async_setup(hass, {})
@@ -1047,17 +1053,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    # Unload platforms
+    # Unload platforms (sensor, etc.)
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
-        # Shutdown coordinator: cancel in-memory callbacks but preserve tasks in storage
-        # so they can be restored after HA restart
+        # Shutdown coordinator to cancel pending callbacks
         coordinator = hass.data[DOMAIN].get("coordinator")
         if coordinator:
             await coordinator.async_shutdown()
 
-        # Note: We don't remove services here as they are registered in async_setup
-        # and should remain available
+        # Automatically remove Lovelace resource when integration is unloaded/removed
+        resources = hass.data.get("lovelace", {}).get("resources")
+        if resources:
+            # We use list() to create a copy of items for safe iteration during removal
+            for res in list(resources.async_items()):
+                if "/quick_timer_static/" in res.get("url", ""):
+                    _LOGGER.info("Removing Quick Timer Card resource: %s", res["url"])
+                    await resources.async_delete_item(res["id"])
+
+        # Clean up hass.data for this domain
+        # hass.data[DOMAIN].pop("coordinator", None)
 
     return unload_ok
