@@ -44,8 +44,8 @@ const DEFAULT_CONFIG = {
   default_time_mode: TIME_MODE_RELATIVE,
   default_at_time: '',
   mode: 'compact',
-  show_state: true,
   show_badge: true,
+  show_progress_bar: false,
   inactive_style: 'dim',
   primary_info: 'name',
   secondary_info: 'timer',
@@ -57,7 +57,7 @@ const DEFAULT_CONFIG = {
 };
 
 const COLOR_OPTIONS = [
-  { value: 'state', label: 'By state', color: null },
+  { value: 'state', label: 'By timer state', color: null },
   { value: 'primary', label: 'Primary', color: 'var(--primary-color)' },
   { value: 'accent', label: 'Accent', color: 'var(--accent-color)' },
   { value: 'disabled', label: 'Disabled', color: 'var(--disabled-color)' },
@@ -615,6 +615,21 @@ class QuickTimerCardEditor extends LitElement {
 
     const appearanceSection = html`
       <div class="editor-row">
+        <label>Display Mode</label>
+        <ha-select .value=${this._config.mode || 'compact'} @selected=${(e) => this._valueChanged('mode', e.target.value)} @closed=${(e) => e.stopPropagation()} fixedMenuPosition>
+          <ha-list-item value="compact">Compact (Tile)</ha-list-item>
+          <ha-list-item value="full">Full</ha-list-item>
+        </ha-select>
+      </div>
+      <div class="inline-row">
+        <div class="editor-row" style="margin-top: 8px;">
+          <ha-formfield label="Show Progress Bar">
+            <ha-switch .checked=${this._config.show_progress_bar === true} @change=${(e) => this._valueChanged('show_progress_bar', e.target.checked)}></ha-switch>
+          </ha-formfield>
+        </div>
+        <div class="editor-row"><ha-formfield label="Show Badge"><ha-switch .checked=${this._config.show_badge !== false} @change=${(e) => this._valueChanged('show_badge', e.target.checked)}></ha-switch></ha-formfield></div>
+      </div>
+      <div class="editor-row">
         <label>Icon</label>
         <ha-icon-picker .hass=${this.hass} .value=${this._config.icon || ''} @value-changed=${(e) => this._valueChanged('icon', e.detail.value)}></ha-icon-picker>
       </div>
@@ -635,13 +650,6 @@ class QuickTimerCardEditor extends LitElement {
             `)}
           </div>
         </div>
-      </div>
-      <div class="editor-row">
-        <label>Display Mode</label>
-        <ha-select .value=${this._config.mode || 'compact'} @selected=${(e) => this._valueChanged('mode', e.target.value)} @closed=${(e) => e.stopPropagation()} fixedMenuPosition>
-          <ha-list-item value="compact">Compact (Tile)</ha-list-item>
-          <ha-list-item value="full">Full</ha-list-item>
-        </ha-select>
       </div>
       <div class="inline-row">
         <div class="editor-row">
@@ -664,10 +672,6 @@ class QuickTimerCardEditor extends LitElement {
           <ha-list-item value="dim">Dim (opacity)</ha-list-item>
           <ha-list-item value="grayscale">Grayscale</ha-list-item>
         </ha-select>
-      </div>
-      <div class="inline-row">
-        <div class="editor-row"><ha-formfield label="Show State"><ha-switch .checked=${this._config.show_state !== false} @change=${(e) => this._valueChanged('show_state', e.target.checked)}></ha-switch></ha-formfield></div>
-        <div class="editor-row"><ha-formfield label="Show Badge"><ha-switch .checked=${this._config.show_badge !== false} @change=${(e) => this._valueChanged('show_badge', e.target.checked)}></ha-switch></ha-formfield></div>
       </div>
     `;
 
@@ -723,6 +727,9 @@ class QuickTimerCard extends LitElement {
       _isScheduled: { type: Boolean },
       _remainingSeconds: { type: Number },
       _endTimestamp: { type: Number },
+      _startTimestamp: { type: Number },
+      _progress: { type: Number },
+      _currentTaskId: { type: String },
       _loading: { type: Boolean },
       _showSettings: { type: Boolean },
       _notifyHa: { type: Boolean },
@@ -741,6 +748,9 @@ class QuickTimerCard extends LitElement {
     this._isScheduled = false;
     this._remainingSeconds = 0;
     this._endTimestamp = 0;
+    this._startTimestamp = 0;
+    this._progress = 0;
+    this._currentTaskId = null;
     this._countdownInterval = null;
     this._loading = false;
     this._showSettings = false;
@@ -844,6 +854,27 @@ class QuickTimerCard extends LitElement {
       .target-summary-item .phase-badge { font-size: 9px; padding: 1px 6px; border-radius: 4px; text-transform: uppercase; font-weight: 600; }
       .target-summary-item .phase-badge.start { background: rgba(76,175,80,0.15); color: var(--success-color, #4caf50); }
       .target-summary-item .phase-badge.finish { background: rgba(var(--rgb-primary-color),0.1); color: var(--primary-color); }
+      
+      ha-card { position: relative; }
+      
+      .progress-bar-container {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: var(--divider-color, rgba(128, 128, 128, 0.2));
+        border-bottom-left-radius: var(--ha-card-border-radius, 12px);
+        border-bottom-right-radius: var(--ha-card-border-radius, 12px);
+        overflow: hidden;
+        z-index: 2;
+      }
+      .progress-bar {
+        height: 100%;
+        background: var(--icon-color, var(--primary-color));
+        transition: width 1s linear;
+        width: 0%;
+      }
     `;
   }
 
@@ -882,13 +913,26 @@ class QuickTimerCard extends LitElement {
     if (!this._isScheduled || !this._endTimestamp) return;
     const remaining = Math.max(0, this._endTimestamp - Date.now() / 1000);
     this._remainingSeconds = remaining;
-    if (remaining <= 0) { this._isScheduled = false; this._remainingSeconds = 0; }
+    
+    if (remaining <= 0) { 
+      this._isScheduled = false; 
+      this._remainingSeconds = 0; 
+      this._progress = 0;
+    } else {
+      // Výpočet percent progress baru (0% - 100%)
+      if (this._startTimestamp && this._endTimestamp) {
+        const total = this._endTimestamp - this._startTimestamp;
+        const passed = (Date.now() / 1000) - this._startTimestamp;
+        this._progress = Math.max(0, Math.min(100, (passed / total) * 100));
+      }
+    }
     this.requestUpdate();
   }
 
   updated(changedProperties) {
     if (changedProperties.has('hass')) {
       this._checkScheduledTask();
+      this._updateCountdown();
       this._loadHistory();
     }
   }
@@ -921,30 +965,43 @@ class QuickTimerCard extends LitElement {
 
     const cardId = this._getCardId();
     const tasks = monitor.attributes.active_tasks;
+    
+    let activeTask = null;
+    let activeTaskId = null;
 
-    // Primary lookup: by card_id (new architecture)
+    // Zistenie, či existuje aktívna úloha pre túto kartu
     if (tasks[cardId]) {
-      this._isScheduled = true;
-      this._endTimestamp = tasks[cardId].end_timestamp || 0;
-      return;
-    }
-
-    // Fallback: check entity_id keys (legacy tasks or injected panel tasks)
-    const targets = this.config.targets || [];
-    if (targets.length > 0) {
-      const found = targets.map(t => tasks[t.entity]).filter(Boolean)[0];
-      if (found) {
-        this._isScheduled = true;
-        this._endTimestamp = found.end_timestamp || 0;
-        return;
+      activeTask = tasks[cardId];
+      activeTaskId = cardId;
+    } else {
+      const targets = this.config.targets || [];
+      if (targets.length > 0) {
+        const foundTarget = targets.find(t => tasks[t.entity]);
+        if (foundTarget) {
+          activeTask = tasks[foundTarget.entity];
+          activeTaskId = foundTarget.entity;
+        }
+      } else if (this.config.entity && tasks[this.config.entity]) {
+        activeTask = tasks[this.config.entity];
+        activeTaskId = this.config.entity;
       }
-    } else if (this.config.entity && tasks[this.config.entity]) {
-      this._isScheduled = true;
-      this._endTimestamp = tasks[this.config.entity].end_timestamp || 0;
-      return;
     }
 
-    this._isScheduled = false;
+    if (activeTask) {
+      this._isScheduled = true;
+      this._endTimestamp = activeTask.end_timestamp || 0;
+      
+      // Nastavenie počiatočného času pre Progress Bar
+      if (this._currentTaskId !== activeTaskId || !this._startTimestamp) {
+        // Pokúsi sa získať start_timestamp z backendu, ak nie je, použije aktuálny čas
+        this._startTimestamp = activeTask.start_timestamp || (Date.now() / 1000);
+        this._currentTaskId = activeTaskId;
+      }
+    } else {
+      this._isScheduled = false;
+      this._currentTaskId = null;
+      this._progress = 0;
+    }
   }
 
   // --- Interaction Handlers ---
@@ -1301,6 +1358,15 @@ class QuickTimerCard extends LitElement {
     `;
   }
 
+  _renderProgressBar() {
+    if (!this.config.show_progress_bar || !this._isScheduled) return html``;
+    return html`
+      <div class="progress-bar-container">
+        <div class="progress-bar" style="width: ${this._progress}%"></div>
+      </div>
+    `;
+  }
+
   _renderCompactMode() {
     const info = this._getEntityInfo();
     const color = this._getColor();
@@ -1322,6 +1388,7 @@ class QuickTimerCard extends LitElement {
             ${this.config.secondary_info !== 'none' ? html`<div class="compact-secondary">${this._getSecondaryInfo()}</div>` : ''}
           </div>
         </div>
+        ${this._renderProgressBar()}
       </ha-card>
       ${this._renderSettingsDialog()}
     `;
@@ -1442,6 +1509,7 @@ class QuickTimerCard extends LitElement {
             </div>
           </div>
         `}
+        ${this._renderProgressBar()}
       </ha-card>
       ${this._renderSettingsDialog()}
     `;
