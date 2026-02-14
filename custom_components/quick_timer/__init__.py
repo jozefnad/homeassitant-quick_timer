@@ -1063,7 +1063,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await coordinator.async_shutdown()
 
         # Automatically remove Lovelace resource when integration is unloaded/removed
-        resources = hass.data.get("lovelace", {}).get("resources")
+        lovelace = hass.data.get("lovelace")
+        resources = getattr(lovelace, "resources", None)
         if resources:
             # We use list() to create a copy of items for safe iteration during removal
             for res in list(resources.async_items()):
