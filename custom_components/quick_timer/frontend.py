@@ -22,7 +22,7 @@ async def async_register_frontend(hass: HomeAssistant):
         integration = await async_get_integration(hass, "quick_timer")
         version = integration.version
     except:
-        version = "xxx"  # Fallback if version cannot be determined
+        version = "0.0.0"  # Fallback version
         
     timestamp = int(time.time())
     url = f"{URL_BASE}/{FILENAME}?v={version}&t={timestamp}"
@@ -66,15 +66,21 @@ class QuickTimerCardView(HomeAssistantView):
         current_dir = os.path.dirname(os.path.realpath(__file__))
         file_path = os.path.join(current_dir, "www", filename)
 
-        if not os.path.exists(file_path):
+        # Check existence in executor (non-blocking)
+        hass = request.app["hass"]
+        if not await hass.async_add_executor_job(os.path.exists, file_path):
             _LOGGER.error("File does not exist at path: %s", file_path)
             return web.Response(status=404, text="File not found on disk")
 
-        # Safe file delivery using aiohttp web Response
+        # Read file in executor (non-blocking)
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                content = f.read()
+            content = await hass.async_add_executor_job(self._read_file, file_path)
             return web.Response(body=content, content_type="application/javascript")
         except Exception as e:
             _LOGGER.error("Error reading file: %s", e)
             return web.Response(status=500, text=str(e))
+
+    def _read_file(self, file_path):
+        """Helper to read file safely in executor."""
+        with open(file_path, "r", encoding="utf-8") as f:
+            return f.read()
