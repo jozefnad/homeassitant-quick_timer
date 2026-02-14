@@ -4,6 +4,9 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![GitHub Release](https://img.shields.io/github/release/jozefnad/homeassistant-quick_timer.svg)](https://github.com/jozefnad/homeassistant-quick_timer/releases)
 [![License](https://img.shields.io/github/license/jozefnad/homeassistant-quick_timer.svg)](LICENSE)
+<a href="https://www.buymeacoffee.com/jozefnad">
+  <img src="https://img.shields.io/badge/Buy%20me%20a%20beer-🍺-yellow?style=for-the-badge&logo=buy-me-a-coffee" alt="Buy me a beer">
+</a>
 
 **Quick Timer** is an all-in-one custom integration for Home Assistant that lets you schedule one-time actions on any entity — complete with a built-in Lovelace card, visual countdown, progress bar, and multi-target support.
 
