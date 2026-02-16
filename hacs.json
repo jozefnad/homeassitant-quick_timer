@@ -1,6 +1,5 @@
 {
   "name": "Quick Timer",
   "domain": "quick_timer",
-  "content_type": "integration",
   "render_readme": true
 }
